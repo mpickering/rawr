@@ -290,17 +290,19 @@ module Data.Rawr
   , (:<=), pattern (:<=), (::<=)
   -- * Utilities
   , (:~)
+  , WrappedLens(..)
   ) where
 
 import Control.DeepSeq
 import Data.Functor
 import Data.Type.Bool
-import Data.Proxy
 import GHC.Generics (Generic)
 import GHC.TypeLits
 import GHC.Types
 import GHC.OverloadedLabels
 import qualified Text.ParserCombinators.ReadP as P
+
+data Proxy a = Proxy
 
 -- | A helper type synonym to convert functional dependencies into nicer type-equality-like syntax.
 --
@@ -356,7 +358,7 @@ pattern Field x <- (Field_ x) where
 -- | A labeled lazy field.
 --
 --   >>> :kind! "foo" := Int
---   "foo" := Int :: *
+-- (:=) :: Int--   "foo" := Int :: *
 --   = Field 'Lazy ('Just "foo") Int
 type family (:=) (l :: Symbol) (t :: *) = (f :: *) | f -> l t where
   (:=) l t = Field 'Lazy ('Just l) t
@@ -428,7 +430,7 @@ instance (Read t, Field s 'Nothing t :~ MkField t) => Read (Field s 'Nothing t) 
 type Lens s t a b = forall f. Functor f => (a -> f b) -> s -> f t
 
 instance l ~ l' => IsLabel (l :: Symbol) (Proxy l') where
-  fromLabel _ = Proxy
+  fromLabel = Proxy
 
 -- | @(:!!) s l a@ says that the record @s@ has a field of type @a@ at index @l@, and provides a @Lens s t a b@ to get/set that particular field.
 --
@@ -686,12 +688,14 @@ instance (Monoid (Field s0 l0 t0), Monoid (Field s1 l1 t1), Monoid (Field s2 l2 
   mempty = R8 mempty mempty mempty mempty mempty mempty mempty mempty
   R8 a b c d e f g h `mappend` R8 a' b' c' d' e' f' g' h' = R8 (a `mappend` a') (b `mappend` b') (c `mappend` c') (d `mappend` d') (e `mappend` e') (f `mappend` f') (g `mappend` g') (h `mappend` h')
 
+newtype WrappedLens a f b s t = WrappedLens { unwrapLens :: (a -> f b) -> s -> f t }
+
 -- Need s2fs ~ (s -> f s) for better type inference
-instance {-# OVERLAPPING #-} (a :~ s :!! l, Functor f, s2ft ~ (s -> f t), t :~ SetFieldImpl l b s) => IsLabel (l :: Symbol) ((a -> f b) -> s2ft) where
-  fromLabel _ = rlens @s @l @a @t @b
+instance {-# OVERLAPPING #-} (a :~ s :!! l, Functor f, t :~ SetFieldImpl l b s) => IsLabel (l :: Symbol) (WrappedLens a f b s t) where
+  fromLabel = WrappedLens (rlens @s @l @a @t @b)
 
 instance {-# OVERLAPPING #-} (a :~ Rec xs :!! l) => IsLabel (l :: Symbol) (Rec xs -> a) where
-  fromLabel _ = get @(Rec xs) @l @a
+  fromLabel = get @(Rec xs) @l @a
 
 type family ToField (a :: *) = (r :: *) where
   ToField (Field s l t) = Field s l t
