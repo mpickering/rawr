@@ -291,6 +291,7 @@ module Data.Rawr
   -- * Utilities
   , (:~)
   , WrappedLens(..)
+  , Rec(..)
   ) where
 
 import Control.DeepSeq
